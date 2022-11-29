@@ -8,6 +8,7 @@ set -e
 
 EXTENSION_TYPE=$1
 EXTENSION_ID=$2
+EXTENSION_VERSION=$3
 
 SERVER_CONTEXT=/opt/lucee/server/lucee-server/context
 WEB_CONTEXT=/opt/lucee/web
@@ -50,20 +51,47 @@ setPassword server $SERVER_CONTEXT/lucee-server.xml
 setPassword web $WEB_CONTEXT/lucee-web.xml.cfm
 
 echo "create a test app"
-mkdir -p /var/www/test_app
+mkdir -p /var/www/wwwroot/test_app
 
-cat > /var/www/test_app/index.cfm <<EOF
+cat > /var/www/wwwroot/test_app/Application.cfc <<EOF
+component { 
+  this.ormenabled = true;
+}
+EOF
+
+cat > /var/www/wwwroot/test_app/index.cfm <<EOF
 <cfscript>
   param name="url.type" default="";
   param name="url.extensionId" default="";
+  param name="url.version" default="";
   serverAdmin = new Administrator(url.type, "password");
   extensions = serverAdmin.getExtensions();
-  dump(var=extensions, format="text");
-  if ( queryExecute(
-    "select id from extensions where id = '#url.extensionId#'",
+  // dump(var=extensions, format="text");
+  if ( url.extensionId == 'FAD1E8CB-4F45-4184-86359145767C29DE' ) {
+    try {
+     ormReload();
+    } catch (any e) {
+      sleep 30;
+      ormReload();
+    }
+  }
+
+  sql = "select * from extensions where id = '#url.extensionId#'";
+  if (len(url.version)) {
+    sql &= " and version = '#url.version#'";
+  }
+
+  extension = queryExecute(
+    sql,
     {},
-    {dbtype="query"} ).recordCount == 0
-  ) {
+    {dbtype="query"}
+  );
+
+  // dump(extension);
+
+  // throw an error when the extension isn't found.
+  // that will cause curl to fail and the loop to retry
+  if (extension.recordCount == 0) {
     throw();
   }
 </cfscript>
@@ -72,7 +100,7 @@ EOF
 echo "warmup tomcat to trigger extension installation"
 catalina.sh start
 echo "wait until extension is installed"
-until $(curl --output /dev/null --silent --head --fail "http://localhost:8888/test_app/?type=${EXTENSION_TYPE}&extensionId=${EXTENSION_ID}"); do
+until $(curl --output /dev/null --silent --head --fail "http://localhost:8888/test_app/?type=${EXTENSION_TYPE}&extensionId=${EXTENSION_ID}&version=${EXTENSION_VERSION}"); do
   printf '.'
   sleep 1
 done
@@ -82,4 +110,4 @@ catalina.sh stop
 echo "cleanup workarounds"
 resetPassword server $SERVER_CONTEXT/lucee-server.xml
 resetPassword web $WEB_CONTEXT/lucee-web.xml.cfm
-rm -rf /var/www/test_app
+rm -rf /var/www/wwwroot/test_app
