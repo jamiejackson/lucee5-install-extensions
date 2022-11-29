@@ -28,3 +28,7 @@ RUN echo "~=%# install redis extension #%=~" \
 RUN echo "~=%# install cfspreadsheet extension #%=~" \
   && cd $DEPLOY_DIR && { curl -O https://raw.githubusercontent.com/Leftbower/cfspreadsheet-lucee-5/master/cfspreadsheet-lucee-5.lex ; cd -; } \
   && ./tmp/warmup_extension.sh server '037A27FF-0B80-4CBA-B954BEBD790B460E'
+
+# needs a warmup because this extension doesn't fully install until an orm function is actually executed
+RUN echo "~=%# warm up hibernate extension #%=~" \
+  && ./tmp/warmup_extension.sh server 'FAD1E8CB-4F45-4184-86359145767C29DE'
